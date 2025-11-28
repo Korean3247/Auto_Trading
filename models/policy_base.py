@@ -1,7 +1,7 @@
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable, List, Optional, Tuple
+from typing import Callable, Iterable, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -40,10 +40,11 @@ class PolicyMLP(nn.Module):
         hidden_sizes: Iterable[int],
         activation: str = "relu",
         action_space: str = "discrete",
+        action_dim: int = 3,
     ):
         super().__init__()
         self.action_space = action_space
-        output_dim = 3 if action_space == "discrete" else 1
+        output_dim = action_dim if action_space == "discrete" else 1
         self.net = build_mlp(input_dim, hidden_sizes, activation, output_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -57,6 +58,17 @@ class PolicyMLP(nn.Module):
             return action, probs
         value = torch.tanh(self.forward(x))
         return value, value
+
+
+class ValueMLP(nn.Module):
+    """Critic network predicting state value."""
+
+    def __init__(self, input_dim: int, hidden_sizes: Iterable[int], activation: str = "relu"):
+        super().__init__()
+        self.net = build_mlp(input_dim, hidden_sizes, activation, output_dim=1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x).squeeze(-1)
 
 
 @dataclass
@@ -91,15 +103,72 @@ def load_policy(
     )
     if path.exists():
         state = torch.load(path, map_location=device)
-        model.load_state_dict(state)
+        if isinstance(state, dict) and "policy_state_dict" in state:
+            model.load_state_dict(state["policy_state_dict"])
+        else:
+            model.load_state_dict(state)
     model.to(device)
     model.eval()
     return model
 
 
-def save_checkpoint(model: nn.Module, path: Path) -> None:
+def save_checkpoint(
+    model: Union[nn.Module, dict],
+    path: Path,
+    value_state: Optional[dict] = None,
+    config: Optional[dict] = None,
+    extra: Optional[dict] = None,
+) -> None:
+    """
+    Save policy (and optionally value) states. If only a model is provided, save raw state_dict for backward compatibility.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(model.state_dict(), path)
+    state_dict = model.state_dict() if hasattr(model, "state_dict") else model
+    if value_state is None and config is None and extra is None:
+        torch.save(state_dict, path)
+        return
+    payload = {
+        "policy_state_dict": state_dict,
+        "value_state_dict": value_state,
+        "config": config,
+        "extra": extra,
+    }
+    torch.save(payload, path)
+
+
+def load_actor_critic(
+    path: Path,
+    policy_cfg: PolicyConfig,
+    device: Optional[torch.device] = None,
+) -> Tuple[PolicyMLP, ValueMLP, Optional[dict]]:
+    """
+    Load actor/critic pair from a checkpoint payload; if absent, init fresh models.
+    """
+    device = device or torch.device("cpu")
+    actor = PolicyMLP(
+        input_dim=policy_cfg.input_dim,
+        hidden_sizes=policy_cfg.hidden_sizes,
+        activation=policy_cfg.activation,
+        action_space=policy_cfg.action_space,
+        action_dim=3,
+    ).to(device)
+    critic = ValueMLP(
+        input_dim=policy_cfg.input_dim,
+        hidden_sizes=policy_cfg.hidden_sizes,
+        activation=policy_cfg.activation,
+    ).to(device)
+    payload = None
+    if path.exists():
+        payload = torch.load(path, map_location=device)
+        if isinstance(payload, dict) and "policy_state_dict" in payload:
+            actor.load_state_dict(payload["policy_state_dict"])
+            if payload.get("value_state_dict") is not None:
+                critic.load_state_dict(payload["value_state_dict"])
+        else:
+            actor.load_state_dict(payload)
+    actor.eval()
+    critic.eval()
+    return actor, critic, payload
 
 
 def select_action(model: PolicyMLP, features: torch.Tensor, device: Optional[torch.device] = None) -> Tuple[int, float]:

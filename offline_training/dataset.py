@@ -8,7 +8,7 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
-from .feature_engineering import extract_feature_target
+from .feature_engineering import extract_feature_target, build_feature_matrix
 
 
 class FeatureDataset(Dataset):
@@ -44,9 +44,26 @@ def _generate_synthetic(n: int = 5000) -> pd.DataFrame:
 def load_market_data(path: Path) -> pd.DataFrame:
     if path.exists():
         if path.suffix == ".parquet":
-            return pd.read_parquet(path)
-        return pd.read_csv(path)
+            df = pd.read_parquet(path)
+        else:
+            df = pd.read_csv(path)
+        if "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
+            df = df.set_index("timestamp", drop=False)
+        return df
     return _generate_synthetic()
+
+
+def load_price_and_features(path: Path) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Load market data and return aligned close prices and feature matrix for RL environments.
+    """
+    df = load_market_data(path)
+    feats = build_feature_matrix(df)
+    # Align prices to feature index to keep shapes identical
+    prices = df.loc[feats.index, "close"].to_numpy()
+    feature_only = feats.drop(columns=["close", "open", "high", "low", "volume", "timestamp"], errors="ignore")
+    return prices, feature_only.to_numpy()
 
 
 def build_datasets(

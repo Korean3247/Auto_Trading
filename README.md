@@ -8,6 +8,15 @@ BTC 선물 자동매매 AI 시스템 코드베이스
 - `offline_training/`: 과거 데이터 로딩, 피처 생성, 지도/간단 RL 학습, 백테스트 스텁.
 - `online_trading/`: 실시간 1분봉 수신, 피처 업데이트, 정책 추론, 모의주문, 리플레이 버퍼, 온라인 미세학습 루프.
 - `models/`: 정책 모델 정의 및 체크포인트 로딩/저장.
+- `models/checkpoint_manager.py`: 체크포인트 리스트/메타 관리.
+- `envs/`: Gym 스타일 트레이딩 환경.
+- `rl_training/`: PPO 등 RL 트레이너.
+- `strategies/`: RL/룰 기반 공통 인터페이스(`Strategy`)와 구현.
+- `online_trading/execution_engine.py`: paper/testnet/live 실행 인터페이스.
+- `risk/`: `RiskManager`로 일손실/레버리지/쿨다운 제어.
+- `backtesting/`: 공통 백테스터.
+- `data/`: 원시 로더/피처 스토어.
+- `reports/`: 로그 집계 → LLM 리포트 파이프라인.
 - `llm/`: 뉴스 수집 스텁, OpenAI 요약, 리포트 생성.
 - `config/config.yaml`: 경로, 하이퍼파라미터, 거래 수수료, API 키 참조.
 - `requirements.txt`: 필수 파이썬 패키지 목록.
@@ -47,7 +56,7 @@ BTC 선물 자동매매 AI 시스템 코드베이스
 권장 워크플로우
 ---------------
 1) Lambda 등 GPU 환경에서 오프라인 학습 후 `models/checkpoints/best_policy.pt` 확보  
-2) 맥북 로컬에서 `paper_trader.py` 실행 → 실시간/시뮬 모의매매 및 리플레이 축적  
-3) `online_train.py`로 주기적 미세학습 및 체크포인트 버전업  
-4) 필요 시 `llm/report_generator.py`로 데일리/위클리 리포트 생성
-
+2) RL 학습(선택): `python rl_training/train_ppo.py --config config/config.yaml` → `best_rl_policy.pt` 생성  
+3) 맥북 로컬에서 `paper_trader.py` 실행 → 실시간/시뮬 모의매매 및 리플레이 축적 (RL 정책이 있으면 우선 사용). `strategy.type`/`execution.mode`/`risk.*`로 제어  
+4) `online_train.py`로 주기적 미세학습 및 체크포인트 버전업  
+5) `reports/report_pipeline.py`로 로그 집계 → LLM 리포트 생성, `logs/live/trades.jsonl` 활용  

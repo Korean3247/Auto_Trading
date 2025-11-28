@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -11,10 +12,14 @@ import torch
 import yaml
 from loguru import logger
 
-from models.policy_base import PolicyConfig, load_policy, select_action
+from strategies.rl_policy import RLStrategy
+from strategies.rule_based import MovingAverageCrossStrategy
+from strategies.base import Strategy
+from risk.risk_manager import RiskManager
 from online_trading.replay_buffer import ReplayBuffer, Transition
 from online_trading.feature_updater import FeatureUpdater
 from online_trading.live_feed import build_feed
+from online_trading.execution_engine import ExecutionEngine
 
 
 @dataclass
@@ -69,10 +74,11 @@ class PaperTrader:
 
 async def run_loop(cfg: dict) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    ckpt = Path(cfg["paths"]["best_policy"])
-    model = None
-    policy_cfg: Optional[PolicyConfig] = None
-    trader = PaperTrader(cfg, None, device)  # model is set lazily
+    ckpt_rl = Path(cfg["paths"].get("best_rl_policy", cfg["paths"]["best_policy"]))
+    ckpt = ckpt_rl if ckpt_rl.exists() else Path(cfg["paths"]["best_policy"])
+    strategy: Optional[Strategy] = None
+    risk = RiskManager(cfg)
+    exec_engine = ExecutionEngine(cfg["execution"]["mode"], cfg, model=None, device=device)
 
     feed = build_feed(
         cfg["live_feed"]["source"],
@@ -82,34 +88,39 @@ async def run_loop(cfg: dict) -> None:
     )
     updater = FeatureUpdater()
     buffer = ReplayBuffer(Path(cfg["paths"]["replay_buffer"]), max_size=cfg["online_training"]["max_buffer_size"])
+    log_path = Path(cfg["paths"]["log_dir"]) / "live" / "trades.jsonl"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
 
     prev_features = None
-    prev_equity = trader.state.equity(0)
+    prev_equity = exec_engine.paper.state.equity(0) if exec_engine.paper else 0.0
 
     async for candle in feed.stream():
         features = updater.update(candle)
         if features is None:
             continue
-        if model is None:
-            policy_cfg = PolicyConfig(
-                input_dim=len(features),
-                hidden_sizes=cfg["model"]["hidden_sizes"],
-                activation=cfg["model"]["activation"],
-                action_space=cfg["model"].get("action_space", "discrete"),
-            )
-            model = load_policy(ckpt, policy_cfg, device=device)
-            trader.model = model
-        feat_tensor = torch.tensor(features, dtype=torch.float32)
-        action, confidence = select_action(model, feat_tensor, device=device)
-        state = trader.step(action, candle.close)
-        equity = state.equity(candle.close)
+        if strategy is None:
+            if cfg["strategy"]["type"] == "rl":
+                strategy = RLStrategy(ckpt, cfg, device=device, input_dim_override=len(features), greedy=True)
+            else:
+                rb = cfg["strategy"]["rule_based"]
+                strategy = MovingAverageCrossStrategy(rb.get("fast_idx", 0), rb.get("slow_idx", 1), rb.get("threshold", 0.0))
+            strategy.reset()
+        action = strategy.act(features)
+        safe_action = risk.check_action(
+            action,
+            prev_equity,
+            exec_engine.get_position(),
+            {"ts": candle.ts, "price": candle.close},
+        )
+        exec_result = exec_engine.execute_action(safe_action, candle.close, ts=candle.ts)
+        equity = exec_result.get("equity", prev_equity)
         reward = equity - prev_equity
 
         if prev_features is not None:
             buffer.add(
                 Transition(
                     state=prev_features.tolist(),
-                    action=action,
+                    action=safe_action,
                     reward=reward,
                     next_state=features.tolist(),
                     timestamp=candle.ts,
@@ -120,18 +131,18 @@ async def run_loop(cfg: dict) -> None:
         prev_features = features
         prev_equity = equity
 
-        logger.info(
-            {
-                "ts": candle.ts,
-                "price": candle.close,
-                "action": action,
-                "confidence_or_size": confidence,
-                "balance": state.balance_usdt,
-                "unrealized": state.unrealized_pnl(candle.close),
-                "equity": equity,
-                "position": state.position_size,
-            }
-        )
+        log_row = {
+            "ts": candle.ts,
+            "price": candle.close,
+            "action": safe_action,
+            "equity": equity,
+            "position": exec_result.get("position_size", 0.0),
+            "balance": exec_result.get("balance", 0.0),
+            "pnl_step": reward,
+        }
+        with log_path.open("a") as f:
+            f.write(json.dumps(log_row) + "\n")
+        logger.info(log_row)
 
 
 def parse_args() -> argparse.Namespace:

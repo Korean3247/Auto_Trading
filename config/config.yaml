@@ -2,6 +2,8 @@ paths:
   data: data/historical_btc.parquet
   checkpoints_dir: models/checkpoints
   best_policy: models/checkpoints/best_policy.pt
+  best_rl_policy: models/checkpoints/best_rl_policy.pt
+  log_dir: logs
   replay_buffer: data/replay_buffer.parquet
 
 model:
@@ -47,3 +49,43 @@ llm:
   temperature: 0.2
   max_tokens: 400
   enable: false
+
+strategy:
+  type: rl                  # rl | rule_based
+  rule_based:
+    fast_idx: 0             # feature index for fast signal (e.g., short EMA/logret)
+    slow_idx: 1             # feature index for slow signal
+    threshold: 0.0
+
+execution:
+  mode: paper               # paper | binance_testnet | binance_live
+  symbol: BTCUSDT
+  leverage: 1
+
+risk:
+  max_daily_loss_pct: 0.05
+  max_leverage: 2.0
+  max_position_notional_pct: 1.0
+  cooldown_minutes: 60
+  drawdown_stop_pct: 0.15
+
+rl:
+  algo: ppo
+  device: cuda
+  total_timesteps: 100000
+  rollout_length: 512
+  batch_size: 64
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_ratio: 0.2
+  actor_lr: 0.0003
+  critic_lr: 0.0003
+  value_coef: 0.5
+  entropy_coef: 0.01
+  max_grad_norm: 0.5
+  reward_scale: 1.0
+  max_steps_per_episode: 10000
+  initial_equity: 1000.0
+  fee_rate: 0.0004
+  slippage: 0.0002
+  min_equity: 1.0
