@@ -7,7 +7,7 @@ paths:
   replay_buffer: data/replay_buffer.parquet
 
 data_source:
-  exchange_id: bybit       # binance | bybit | okx ...
+  exchange_id: bitstamp       # binance | bybit | okx ...
   fallback_exchanges: []   # optional list for retries
   symbol: BTC/USDT         # ccxt symbol format
   timeframe: 1m
@@ -17,7 +17,7 @@ data_source:
   allow_synthetic_fallback: false
 
 model:
-  input_dim: null        # inferred from data/features when training or first live candle
+  input_dim: 15        # inferred from data/features when training or first live candle
   hidden_sizes: [128, 64, 32]
   activation: relu
   action_space: discrete  # discrete|continuous
