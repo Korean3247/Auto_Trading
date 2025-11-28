@@ -1,0 +1,49 @@
+paths:
+  data: data/historical_btc.parquet
+  checkpoints_dir: models/checkpoints
+  best_policy: models/checkpoints/best_policy.pt
+  replay_buffer: data/replay_buffer.parquet
+
+model:
+  input_dim: null        # inferred from data/features when training or first live candle
+  hidden_sizes: [128, 64, 32]
+  activation: relu
+  action_space: discrete  # discrete|continuous
+
+offline_training:
+  epochs: 5
+  batch_size: 256
+  learning_rate: 0.0005
+  weight_decay: 0.0001
+  train_split: 0.8
+  val_split: 0.1
+  test_split: 0.1
+  seed: 42
+
+online_training:
+  learning_rate: 0.00001
+  weight_decay: 0.0
+  batch_size: 64
+  update_every: 100
+  max_buffer_size: 200000
+  weight_anchor_coef: 0.01
+
+paper_trading:
+  fee_taker: 0.0004
+  fee_maker: 0.0002
+  starting_balance: 10000
+  max_position_size: 1.0     # fraction of equity
+  slippage_bps: 1.0
+
+live_feed:
+  source: binance           # binance|simulate
+  symbol: BTCUSDT
+  interval: 1m
+  rest_poll_seconds: 60
+  websocket_url: wss://fstream.binance.com/ws
+
+llm:
+  model: gpt-4.1-mini
+  temperature: 0.2
+  max_tokens: 400
+  enable: false

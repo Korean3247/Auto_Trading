@@ -1,0 +1,53 @@
+BTC 선물 자동매매 AI 시스템 코드베이스
+======================================
+
+이 리포지토리는 BTC Perpetual Futures 자동매매를 위한 오프라인 학습 → 실시간 모의매매 → 온라인 미세학습 파이프라인을 모두 포함하는 최소 실행 골격(minimal working skeleton)입니다. Lambda GPU에서의 초기 학습과 맥북 로컬 실시간 파이프라인을 모두 지원하도록 모듈을 분리했습니다.
+
+구성 개요
+---------
+- `offline_training/`: 과거 데이터 로딩, 피처 생성, 지도/간단 RL 학습, 백테스트 스텁.
+- `online_trading/`: 실시간 1분봉 수신, 피처 업데이트, 정책 추론, 모의주문, 리플레이 버퍼, 온라인 미세학습 루프.
+- `models/`: 정책 모델 정의 및 체크포인트 로딩/저장.
+- `llm/`: 뉴스 수집 스텁, OpenAI 요약, 리포트 생성.
+- `config/config.yaml`: 경로, 하이퍼파라미터, 거래 수수료, API 키 참조.
+- `requirements.txt`: 필수 파이썬 패키지 목록.
+
+빠른 시작 (로컬 모의 환경)
+-------------------------
+1. 가상환경 생성 및 패키지 설치  
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
+2. 환경 변수 설정(필요시)  
+   - `BINANCE_API_KEY`, `BINANCE_API_SECRET` (실거래/테스트넷 사용 시)  
+   - `OPENAI_API_KEY` (LLM 요약/리포트 사용 시)
+3. 오프라인 예제 학습(랜덤/샘플 데이터)  
+   ```bash
+   python offline_training/train_offline.py --config config/config.yaml
+   ```
+4. 실시간 모의 매매 루프(웹소켓 불가 시 로컬 시뮬레이터 사용)  
+   ```bash
+   python online_trading/paper_trader.py --config config/config.yaml
+   ```
+
+설계 포인트
+-----------
+- 지연시간 500ms 목표: 피처 업데이트와 모델 추론을 분리하고, I/O(웹소켓, REST)와 연산을 비동기로 구성.
+- 온라인 미세학습: 리플레이 버퍼에서 미니배치 샘플링 후 아주 작은 학습률(기본 1e-5)로 업데이트, weight anchoring을 통해 catastrophic forgetting 방지.
+- 체크포인트 버전 관리: `models/checkpoints/policy_v*.pt` 자동 저장.
+- 확장: 실계좌 전환 시 `online_trading/paper_trader.py`의 `PaperTrader`를 거래소 API 래퍼로 교체하면 동일한 액션 파이프라인 유지.
+
+알려진 제한
+-----------
+- 실제 Binance 실시간 데이터/주문은 API 키와 네트워크가 필요하며, 제공 코드는 테스트넷/시뮬레이터 우선입니다.
+- LLM 모듈은 OpenAI API 키가 필요하며, 없는 경우 graceful degrade 됩니다.
+
+권장 워크플로우
+---------------
+1) Lambda 등 GPU 환경에서 오프라인 학습 후 `models/checkpoints/best_policy.pt` 확보  
+2) 맥북 로컬에서 `paper_trader.py` 실행 → 실시간/시뮬 모의매매 및 리플레이 축적  
+3) `online_train.py`로 주기적 미세학습 및 체크포인트 버전업  
+4) 필요 시 `llm/report_generator.py`로 데일리/위클리 리포트 생성
+
