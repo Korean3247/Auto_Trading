@@ -37,7 +37,7 @@ class BacktestResult:
 class Backtester:
     def __init__(self, cfg: dict, start: Optional[pd.Timestamp] = None, end: Optional[pd.Timestamp] = None):
         self.cfg = cfg
-        df = load_market_data(Path(cfg["paths"]["data"]))
+        df = load_market_data(Path(cfg["paths"]["data"]), cfg)
         if start:
             df = df[df.index >= start]
         if end:

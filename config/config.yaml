@@ -6,6 +6,16 @@ paths:
   log_dir: logs
   replay_buffer: data/replay_buffer.parquet
 
+data_source:
+  exchange_id: bybit       # binance | bybit | okx ...
+  fallback_exchanges: []   # optional list for retries
+  symbol: BTC/USDT         # ccxt symbol format
+  timeframe: 1m
+  start_iso: 2024-01-01T00:00:00Z
+  max_bars: 500000
+  auto_download_on_missing: true
+  allow_synthetic_fallback: false
+
 model:
   input_dim: null        # inferred from data/features when training or first live candle
   hidden_sizes: [128, 64, 32]
@@ -13,10 +23,10 @@ model:
   action_space: discrete  # discrete|continuous
 
 offline_training:
-  epochs: 5
-  batch_size: 256
-  learning_rate: 0.0005
-  weight_decay: 0.0001
+  epochs: 50
+  batch_size: 1024
+  learning_rate: 0.0003
+  weight_decay: 0.00005
   train_split: 0.8
   val_split: 0.1
   test_split: 0.1
@@ -72,16 +82,16 @@ risk:
 rl:
   algo: ppo
   device: cuda
-  total_timesteps: 100000
-  rollout_length: 512
-  batch_size: 64
-  gamma: 0.99
+  total_timesteps: 3000000
+  rollout_length: 1024
+  batch_size: 128
+  gamma: 0.995
   gae_lambda: 0.95
-  clip_ratio: 0.2
-  actor_lr: 0.0003
-  critic_lr: 0.0003
+  clip_ratio: 0.15
+  actor_lr: 0.0002
+  critic_lr: 0.0004
   value_coef: 0.5
-  entropy_coef: 0.01
+  entropy_coef: 0.005
   max_grad_norm: 0.5
   reward_scale: 1.0
   max_steps_per_episode: 10000

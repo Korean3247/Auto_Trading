@@ -8,6 +8,8 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
+from data.raw_loader import load_ohlcv
+from data.feature_store import make_features
 from .feature_engineering import extract_feature_target, build_feature_matrix
 
 
@@ -41,7 +43,9 @@ def _generate_synthetic(n: int = 5000) -> pd.DataFrame:
     return df
 
 
-def load_market_data(path: Path) -> pd.DataFrame:
+def load_market_data(path: Path, cfg: Optional[dict] = None) -> pd.DataFrame:
+    if cfg:
+        return load_ohlcv(cfg)
     if path.exists():
         if path.suffix == ".parquet":
             df = pd.read_parquet(path)
@@ -54,13 +58,12 @@ def load_market_data(path: Path) -> pd.DataFrame:
     return _generate_synthetic()
 
 
-def load_price_and_features(path: Path) -> Tuple[np.ndarray, np.ndarray]:
+def load_price_and_features(path: Path, cfg: Optional[dict] = None) -> Tuple[np.ndarray, np.ndarray]:
     """
     Load market data and return aligned close prices and feature matrix for RL environments.
     """
-    df = load_market_data(path)
+    df = load_market_data(path, cfg)
     feats = build_feature_matrix(df)
-    # Align prices to feature index to keep shapes identical
     prices = df.loc[feats.index, "close"].to_numpy()
     feature_only = feats.drop(columns=["close", "open", "high", "low", "volume", "timestamp"], errors="ignore")
     return prices, feature_only.to_numpy()
@@ -70,8 +73,9 @@ def build_datasets(
     data_path: Path,
     train_split: float,
     val_split: float,
+    cfg: Optional[dict] = None,
 ) -> Tuple[FeatureDataset, FeatureDataset, FeatureDataset]:
-    df = load_market_data(data_path)
+    df = load_market_data(data_path, cfg)
     features_df, target = extract_feature_target(df)
     features = features_df.to_numpy()
     targets = target.to_numpy()

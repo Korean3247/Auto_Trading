@@ -17,6 +17,7 @@ BTC 선물 자동매매 AI 시스템 코드베이스
 - `backtesting/`: 공통 백테스터.
 - `data/`: 원시 로더/피처 스토어.
 - `reports/`: 로그 집계 → LLM 리포트 파이프라인.
+- `data_source` 설정: exchange/symbol/timeframe/auto-download/fallback 제어.
 - `llm/`: 뉴스 수집 스텁, OpenAI 요약, 리포트 생성.
 - `config/config.yaml`: 경로, 하이퍼파라미터, 거래 수수료, API 키 참조.
 - `requirements.txt`: 필수 파이썬 패키지 목록.
@@ -60,3 +61,8 @@ BTC 선물 자동매매 AI 시스템 코드베이스
 3) 맥북 로컬에서 `paper_trader.py` 실행 → 실시간/시뮬 모의매매 및 리플레이 축적 (RL 정책이 있으면 우선 사용). `strategy.type`/`execution.mode`/`risk.*`로 제어  
 4) `online_train.py`로 주기적 미세학습 및 체크포인트 버전업  
 5) `reports/report_pipeline.py`로 로그 집계 → LLM 리포트 생성, `logs/live/trades.jsonl` 활용  
+
+데이터 준비
+-----------
+- `config/config.yaml`의 `data_source`로 거래소/심볼/기간을 정의. `auto_download_on_missing=true`이면 `paths.data`가 없을 때 ccxt로 다운로드를 시도하고, `allow_synthetic_fallback=false`이면 실데이터 없을 때 학습을 중단한다.
+검색 제한(451) 등으로 실패 시 `fallback_exchanges`나 `exchange_id`를 다른 거래소로 교체 후 다시 실행.

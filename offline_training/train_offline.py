@@ -74,6 +74,7 @@ def main() -> None:
         Path(cfg["paths"]["data"]),
         train_split=cfg["offline_training"]["train_split"],
         val_split=cfg["offline_training"]["val_split"],
+        cfg=cfg,
     )
     input_dim = train_set.features.shape[1]
     policy_cfg = PolicyConfig(

@@ -155,7 +155,7 @@ def attach_optimizers(actor: PolicyMLP, critic: ValueMLP, cfg: Dict, device: tor
 def main(config_path: str = "config/config.yaml"):
     with open(config_path, "r") as f:
         cfg = yaml.safe_load(f)
-    price_arr, feature_arr = load_price_and_features(Path(cfg["paths"]["data"]))
+    price_arr, feature_arr = load_price_and_features(Path(cfg["paths"]["data"]), cfg)
     policy_cfg = PolicyConfig(
         input_dim=feature_arr.shape[1],
         hidden_sizes=cfg["model"]["hidden_sizes"],
