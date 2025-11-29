@@ -111,6 +111,8 @@ class TradingEnv:
         if self.returns_window:
             vol_penalty = self.cfg["rl"].get("vol_penalty_coeff", 0.0) * float(np.std(self.returns_window))
 
+        action_mapping = self.cfg["rl"].get("action_mapping", [-1.0, 0.0, 1.0])
+        target_pos = action_mapping[action] if action < len(action_mapping) else 0.0
         turnover_penalty = self.cfg["rl"].get("turnover_penalty_coeff", 0.0) * abs(self.position - target_pos)
         exposure_penalty = self.cfg["rl"].get("exposure_penalty_coeff", 0.0) * abs(self.position)
 
