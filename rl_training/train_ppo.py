@@ -187,13 +187,8 @@ def attach_optimizers(actor: PolicyMLP, critic: ValueMLP, cfg: Dict, device: tor
     critic.optimizer = torch.optim.Adam(critic.parameters(), lr=cfg["rl"]["critic_lr"])  # type: ignore[attr-defined]
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, default="config/config.yaml")
-    parser.add_argument("--reset_policy", action="store_true", help="Ignore existing RL checkpoint and start fresh.")
-    args = parser.parse_args()
-
-    with open(args.config, "r") as f:
+def main(config_path: str, reset_policy: bool = False):
+    with open(config_path, "r") as f:
         cfg = yaml.safe_load(f)
     price_arr, feature_arr = load_price_and_features(Path(cfg["paths"]["data"]), cfg)
     policy_cfg = PolicyConfig(
@@ -205,9 +200,14 @@ def main():
     device = torch.device(cfg["rl"]["device"] if torch.cuda.is_available() else "cpu")
     env = TradingEnv(price_arr, feature_arr, cfg)
 
-    actor, critic, _ = load_actor_critic(
-        Path(cfg["paths"]["best_rl_policy"]), policy_cfg, device=device, load=not args.reset_policy
-    )
+    from pathlib import Path as _Path
+
+    ckpt_path = _Path(cfg["paths"]["best_rl_policy"])
+    if reset_policy:
+        print(f"[train_ppo] reset_policy=True -> ignoring existing checkpoint: {ckpt_path}")
+        ckpt_path = _Path("models/checkpoints/reset_policy_dummy.pt")
+
+    actor, critic, _ = load_actor_critic(ckpt_path, policy_cfg, device=device, load=not reset_policy)
     attach_optimizers(actor, critic, cfg, device)
 
     ppo_cfg = PPOConfig(
@@ -260,7 +260,14 @@ def main():
 
 
 if __name__ == "__main__":
+    import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, default="config/config.yaml")
+    parser.add_argument(
+        "--reset_policy",
+        action="store_true",
+        help="Ignore existing RL checkpoint and start from scratch.",
+    )
     args = parser.parse_args()
-    main(args.config)
+    main(args.config, reset_policy=args.reset_policy)
