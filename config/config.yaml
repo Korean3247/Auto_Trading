@@ -23,9 +23,9 @@ data_source:
   test_end:    "2024-12-31"
 
 cost:
-  commission_bps: 1.0
-  slippage_bps: 2.0
-  spread_bps: 5.0
+  commission_bps: 0.5
+  slippage_bps: 1.0
+  spread_bps: 2.0
 
 model:
   input_dim: 15        # inferred from data/features when training or first live candle
@@ -103,20 +103,20 @@ rl:
   critic_lr: 0.0004
   value_coef: 0.5
   entropy_coef: 0.02
-  min_action_prob: 0.10      # exploration floor for sampling
-  flat_penalty: -0.001      # per-step penalty if action=flat to discourage collapse
+  min_action_prob: 0.05      # exploration floor for sampling
+  flat_penalty: -0.0005      # slight opportunity cost for staying flat
   max_grad_norm: 0.5
   reward_scale: 1.0
   action_mapping: [-1.0, -0.5, 0.0, 0.5, 1.0]
   episode_length: 2048
   min_start_index: 0
   max_start_index: 480000
-  excess_return_alpha: 1.0
-  dd_penalty_coeff: 0.5
-  dd_threshold: 0.2
-  vol_penalty_coeff: 0.1
+  excess_return_alpha: 0.8
+  dd_penalty_coeff: 0.1
+  dd_threshold: 0.25
+  vol_penalty_coeff: 0.02
   vol_window: 50
-  turnover_penalty_coeff: 0.01
+  turnover_penalty_coeff: 0.001
   exposure_penalty_coeff: 0.0
   max_steps_per_episode: 10000
   initial_equity: 1000.0
