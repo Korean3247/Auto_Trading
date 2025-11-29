@@ -66,3 +66,11 @@ BTC 선물 자동매매 AI 시스템 코드베이스
 -----------
 - `config/config.yaml`의 `data_source`로 거래소/심볼/기간을 정의. `auto_download_on_missing=true`이면 `paths.data`가 없을 때 ccxt로 다운로드를 시도하고, `allow_synthetic_fallback=false`이면 실데이터 없을 때 학습을 중단한다.
 검색 제한(451) 등으로 실패 시 `fallback_exchanges`나 `exchange_id`를 다른 거래소로 교체 후 다시 실행.
+
+RL 평가
+-------
+- 학습된 RL 정책 백테스트:  
+  ```bash
+  python -m rl_training.evaluate --config config/config.yaml --checkpoint models/checkpoints/best_rl_policy.pt
+  ```
+  결과는 로그로 출력되고 `logs/rl_eval_summary.json`에 저장된다.

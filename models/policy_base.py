@@ -89,24 +89,40 @@ class PolicyConfig:
         )
 
 
+def _infer_input_dim_from_state(state: dict) -> int:
+    for v in state.values():
+        if isinstance(v, torch.Tensor) and v.ndim == 2:
+            return v.shape[1]
+    raise RuntimeError("Unable to infer input_dim from checkpoint state.")
+
+
 def load_policy(
     path: Path,
     config: PolicyConfig,
     device: Optional[torch.device] = None,
 ) -> PolicyMLP:
     device = device or torch.device("cpu")
+    state = torch.load(path, map_location=device) if path.exists() else None
+    state_dict = None
+    if isinstance(state, dict) and "policy_state_dict" in state:
+        state_dict = state["policy_state_dict"]
+    elif state is not None:
+        state_dict = state
+
+    input_dim = config.input_dim
+    if input_dim == 0 or input_dim is None:
+        if state_dict is None:
+            raise RuntimeError("Cannot infer input_dim without checkpoint state.")
+        input_dim = _infer_input_dim_from_state(state_dict)
+
     model = PolicyMLP(
-        input_dim=config.input_dim,
+        input_dim=input_dim,
         hidden_sizes=config.hidden_sizes,
         activation=config.activation,
         action_space=config.action_space,
     )
-    if path.exists():
-        state = torch.load(path, map_location=device)
-        if isinstance(state, dict) and "policy_state_dict" in state:
-            model.load_state_dict(state["policy_state_dict"])
-        else:
-            model.load_state_dict(state)
+    if state_dict is not None:
+        model.load_state_dict(state_dict)
     model.to(device)
     model.eval()
     return model
@@ -145,27 +161,35 @@ def load_actor_critic(
     Load actor/critic pair from a checkpoint payload; if absent, init fresh models.
     """
     device = device or torch.device("cpu")
+    payload = torch.load(path, map_location=device) if path.exists() else None
+    policy_state = None
+    value_state = None
+    if isinstance(payload, dict):
+        policy_state = payload.get("policy_state_dict")
+        value_state = payload.get("value_state_dict")
+    elif payload is not None:
+        policy_state = payload
+
+    input_dim = policy_cfg.input_dim
+    if (input_dim == 0 or input_dim is None) and policy_state is not None:
+        input_dim = _infer_input_dim_from_state(policy_state)
+
     actor = PolicyMLP(
-        input_dim=policy_cfg.input_dim,
+        input_dim=input_dim,
         hidden_sizes=policy_cfg.hidden_sizes,
         activation=policy_cfg.activation,
         action_space=policy_cfg.action_space,
         action_dim=3,
     ).to(device)
     critic = ValueMLP(
-        input_dim=policy_cfg.input_dim,
+        input_dim=input_dim,
         hidden_sizes=policy_cfg.hidden_sizes,
         activation=policy_cfg.activation,
     ).to(device)
-    payload = None
-    if path.exists():
-        payload = torch.load(path, map_location=device)
-        if isinstance(payload, dict) and "policy_state_dict" in payload:
-            actor.load_state_dict(payload["policy_state_dict"])
-            if payload.get("value_state_dict") is not None:
-                critic.load_state_dict(payload["value_state_dict"])
-        else:
-            actor.load_state_dict(payload)
+    if policy_state is not None:
+        actor.load_state_dict(policy_state)
+    if value_state is not None:
+        critic.load_state_dict(value_state)
     actor.eval()
     critic.eval()
     return actor, critic, payload
