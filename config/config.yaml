@@ -29,7 +29,7 @@ cost:
 
 model:
   input_dim: 15        # inferred from data/features when training or first live candle
-  hidden_sizes: [128, 64, 32]
+  hidden_sizes: [256, 256, 128]
   activation: relu
   action_space: discrete  # discrete|continuous
 
@@ -93,9 +93,9 @@ risk:
 rl:
   algo: ppo
   device: cuda
-  total_timesteps: 3000000
-  rollout_length: 1024
-  batch_size: 128
+  total_timesteps: 5000000
+  rollout_length: 4096
+  batch_size: 512
   gamma: 0.995
   gae_lambda: 0.95
   clip_ratio: 0.15
