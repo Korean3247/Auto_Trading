@@ -187,8 +187,13 @@ def attach_optimizers(actor: PolicyMLP, critic: ValueMLP, cfg: Dict, device: tor
     critic.optimizer = torch.optim.Adam(critic.parameters(), lr=cfg["rl"]["critic_lr"])  # type: ignore[attr-defined]
 
 
-def main(config_path: str = "config/config.yaml"):
-    with open(config_path, "r") as f:
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=str, default="config/config.yaml")
+    parser.add_argument("--reset_policy", action="store_true", help="Ignore existing RL checkpoint and start fresh.")
+    args = parser.parse_args()
+
+    with open(args.config, "r") as f:
         cfg = yaml.safe_load(f)
     price_arr, feature_arr = load_price_and_features(Path(cfg["paths"]["data"]), cfg)
     policy_cfg = PolicyConfig(
@@ -200,7 +205,9 @@ def main(config_path: str = "config/config.yaml"):
     device = torch.device(cfg["rl"]["device"] if torch.cuda.is_available() else "cpu")
     env = TradingEnv(price_arr, feature_arr, cfg)
 
-    actor, critic, _ = load_actor_critic(Path(cfg["paths"]["best_rl_policy"]), policy_cfg, device=device)
+    actor, critic, _ = load_actor_critic(
+        Path(cfg["paths"]["best_rl_policy"]), policy_cfg, device=device, load=not args.reset_policy
+    )
     attach_optimizers(actor, critic, cfg, device)
 
     ppo_cfg = PPOConfig(
@@ -223,6 +230,10 @@ def main(config_path: str = "config/config.yaml"):
         buffer, stats = collect_rollout(env, actor, critic, cfg)
         policy_loss, value_loss = ppo_update(actor, critic, buffer, ppo_cfg, device)
         timesteps += cfg["rl"]["rollout_length"]
+        if stats["mean_entropy"] < 1e-3 and len(stats["action_counts"]) == 1:
+            logger.warning(
+                "Policy entropy ~0 and single-action collapse detected. Consider increasing entropy_coef or starting with --reset_policy."
+            )
         logger.info(
             f"Timesteps={timesteps}, policy_loss={policy_loss:.4f}, value_loss={value_loss:.4f}, "
             f"equity={env.equity:.2f}, rollout_reward={stats['total_reward']:.6f}, "

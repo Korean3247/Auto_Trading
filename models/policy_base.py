@@ -156,12 +156,13 @@ def load_actor_critic(
     path: Path,
     policy_cfg: PolicyConfig,
     device: Optional[torch.device] = None,
+    load: bool = True,
 ) -> Tuple[PolicyMLP, ValueMLP, Optional[dict]]:
     """
     Load actor/critic pair from a checkpoint payload; if absent, init fresh models.
     """
     device = device or torch.device("cpu")
-    payload = torch.load(path, map_location=device, weights_only=False) if path.exists() else None
+    payload = torch.load(path, map_location=device, weights_only=False) if (load and path.exists()) else None
     policy_state = None
     value_state = None
     if isinstance(payload, dict):
@@ -186,9 +187,9 @@ def load_actor_critic(
         hidden_sizes=policy_cfg.hidden_sizes,
         activation=policy_cfg.activation,
     ).to(device)
-    if policy_state is not None:
+    if load and policy_state is not None:
         actor.load_state_dict(policy_state)
-    if value_state is not None:
+    if load and value_state is not None:
         critic.load_state_dict(value_state)
     actor.eval()
     critic.eval()
