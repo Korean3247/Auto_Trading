@@ -84,13 +84,22 @@ def collect_rollout(env: TradingEnv, actor: PolicyMLP, critic: ValueMLP, cfg: Di
         obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
         with torch.no_grad():
             logits = actor(obs_tensor)
-            dist = Categorical(logits=logits)
+            probs = torch.softmax(logits, dim=-1)
+            eps = cfg["rl"].get("min_action_prob", 0.0)
+            if eps > 0:
+                probs = torch.clamp(probs, min=eps)
+                probs = probs / probs.sum(dim=-1, keepdim=True)
+            dist = Categorical(probs=probs)
             action = dist.sample()
             logprob = dist.log_prob(action)
             value = critic(obs_tensor)
             entropy = dist.entropy()
-        probs = dist.probs
+            probs = dist.probs
         next_obs, reward, done, info = env.step(int(action.item()))
+        # Optional reward shaping to discourage always-flat collapse
+        flat_penalty = cfg["rl"].get("flat_penalty", 0.0)
+        if int(action.item()) == 1:
+            reward += flat_penalty
         total_reward += reward
         buffer.add(
             obs,

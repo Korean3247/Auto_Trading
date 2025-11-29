@@ -76,3 +76,4 @@ RL 평가
   결과는 로그로 출력되고 `logs/rl_eval_summary.json`에 저장된다.
 - 액션 매핑은 일관되게 `0=short, 1=flat, 2=long`. 환경/평가/실거래가 동일하며, `--force_action {short,flat,long}`로 환경 보상 sanity-check가 가능하다.
 - PPO 재시작 시 기존 체크포인트를 무시하고 새로 시작하려면 `python -m rl_training.train_ppo --config config/config.yaml --reset_policy`를 사용. 롤아웃 로그에 평균 엔트로피/액션 확률이 찍히며, 단일 액션으로 붕괴 시 경고를 출력한다.
+- Collapse 대응 옵션: `rl.entropy_coef`, `rl.min_action_prob`(샘플링 최소 확률), `rl.flat_penalty`(flat 시 스텝 패널티)로 탐색 부족 시 튜닝 가능.
