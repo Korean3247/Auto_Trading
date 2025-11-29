@@ -161,7 +161,7 @@ def load_actor_critic(
     Load actor/critic pair from a checkpoint payload; if absent, init fresh models.
     """
     device = device or torch.device("cpu")
-    payload = torch.load(path, map_location=device) if path.exists() else None
+    payload = torch.load(path, map_location=device, weights_only=False) if path.exists() else None
     policy_state = None
     value_state = None
     if isinstance(payload, dict):
