@@ -3,103 +3,91 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 import numpy as np
 import torch
 import yaml
 from loguru import logger
 
+from envs.trading_env import TradingEnv
 from models.policy_base import PolicyConfig, load_policy
 from offline_training.dataset import load_price_and_features
 
 
-def load_policy_with_infer(cfg: dict, ckpt: Path, input_dim: int) -> torch.nn.Module:
-    policy_cfg = PolicyConfig(
-        input_dim=input_dim,
-        hidden_sizes=cfg["model"]["hidden_sizes"],
-        activation=cfg["model"]["activation"],
-        action_space=cfg["model"].get("action_space", "discrete"),
-    )
-    return load_policy(ckpt, policy_cfg, device=torch.device("cpu"))
+def resolve_force_action(action_map: list[float], name: str) -> int:
+    if name == "short":
+        return int(np.argmin(action_map))
+    if name == "long":
+        return int(np.argmax(action_map))
+    # flat -> closest to zero exposure
+    return int(np.argmin(np.abs(np.array(action_map))))
 
 
-def evaluate_policy(cfg: dict, ckpt_path: Path, force_action: str | None = None) -> Dict:
+def evaluate_policy(cfg: dict, ckpt_path: Path, force_action: Optional[str] = None) -> Dict:
     prices, features = load_price_and_features(Path(cfg["paths"]["data"]), cfg)
     if len(prices) < 2:
         raise RuntimeError("Not enough data for evaluation.")
 
-    # Infer input_dim from checkpoint if config left null/0
-    dummy_cfg = PolicyConfig(
+    action_map = cfg["rl"].get("action_mapping", [-1.0, 0.0, 1.0])
+    policy_cfg = PolicyConfig(
         input_dim=features.shape[1],
         hidden_sizes=cfg["model"]["hidden_sizes"],
         activation=cfg["model"]["activation"],
         action_space=cfg["model"].get("action_space", "discrete"),
-        action_dim=len(cfg["rl"].get("action_mapping", [-1.0, 0.0, 1.0])),
+        action_dim=len(action_map),
     )
-    policy = load_policy(ckpt_path, dummy_cfg, device=torch.device("cpu"))
+    policy = load_policy(ckpt_path, policy_cfg, device=torch.device("cpu"))
     policy.eval()
 
-    initial_equity = cfg["paper_trading"]["starting_balance"]
-    fee = cfg["rl"].get("fee_rate", cfg["paper_trading"]["fee_taker"])
-    _ = cfg["rl"].get("slippage", cfg["paper_trading"]["slippage_bps"] / 10000)  # slippage placeholder
+    env_cfg = cfg.copy()
+    env_cfg["rl"]["max_steps_per_episode"] = len(prices)
+    env = TradingEnv(prices, features, env_cfg)
+    obs = env.reset(start_idx=0)
 
-    equity = initial_equity
-    max_equity = initial_equity
-    position = 0  # -1 short, 0 flat, 1 long
-    entry_price = 0.0
+    action_counts = {i: 0 for i in range(len(action_map))}
     trades = 0
     wins = 0
-    action_counts = {0: 0, 1: 0, 2: 0}
+    prev_pos = 0.0
     equity_curve = []
+    returns = []
 
-    for t in range(1, len(prices)):
-        obs = torch.tensor(features[t - 1], dtype=torch.float32).unsqueeze(0)
+    while True:
         if force_action:
-            action = {"short": 0, "flat": 1, "long": 2}[force_action]
+            action_idx = resolve_force_action(action_map, force_action)
         else:
             with torch.no_grad():
-                logits = policy(obs)
-                action = int(torch.argmax(logits, dim=-1).item())
-        action_counts[action] = action_counts.get(action, 0) + 1
+                logits = policy(torch.tensor(obs, dtype=torch.float32).unsqueeze(0))
+                action_idx = int(torch.argmax(logits, dim=-1).item())
+        action_counts[action_idx] = action_counts.get(action_idx, 0) + 1
 
-        action_map = cfg["rl"].get("action_mapping", [-1.0, 0.0, 1.0])
-        target_pos = action_map[action] if action < len(action_map) else 0.0
-        price_prev = prices[t - 1]
-        price_now = prices[t]
-        ret = (price_now - price_prev) / max(price_prev, 1e-8)
+        next_obs, reward, done, info = env.step(action_idx)
+        equity_curve.append(info["equity"])
+        returns.append(reward)
 
-        # PnL from holding previous position
-        pnl_hold = position * ret * equity
-
-        # If position change, apply fee and reset entry
-        fee_cost = 0.0
-        if target_pos != position:
+        if abs(info["position"] - prev_pos) > 1e-9:
             trades += 1
-            trade_notional = abs(target_pos - position) * price_now
-            fee_cost = trade_notional * fee
-            if position != 0:
-                # Evaluate win/loss on closing leg
-                if pnl_hold > 0:
-                    wins += 1
-            entry_price = price_now
-        equity = equity + pnl_hold - fee_cost
-        position = target_pos
-        max_equity = max(max_equity, equity)
-        equity_curve.append(equity)
+            if info.get("pnl", 0.0) > 0:
+                wins += 1
+        prev_pos = info["position"]
+        obs = next_obs
+        if done:
+            break
 
     equity_arr = np.array(equity_curve)
     max_dd = float(np.max(np.maximum.accumulate(equity_arr) - equity_arr)) if len(equity_arr) else 0.0
-    total_return = (equity - initial_equity) / initial_equity
+    total_return = (equity_arr[-1] - equity_arr[0]) / equity_arr[0] if len(equity_arr) else 0.0
     win_rate = wins / trades if trades > 0 else 0.0
+    sharpe = float(np.mean(returns) / (np.std(returns) + 1e-8) * np.sqrt(len(returns))) if returns else 0.0
 
     summary = {
-        "initial_equity": initial_equity,
-        "final_equity": equity,
+        "initial_equity": float(equity_arr[0]) if len(equity_arr) else cfg["paper_trading"]["starting_balance"],
+        "final_equity": float(equity_arr[-1]) if len(equity_arr) else cfg["paper_trading"]["starting_balance"],
         "total_return_pct": total_return * 100,
         "max_drawdown": max_dd,
         "total_trades": trades,
         "win_rate": win_rate,
+        "sharpe": sharpe,
         "action_distribution": action_counts,
     }
     return summary
@@ -109,7 +97,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate RL policy on historical data.")
     parser.add_argument("--config", type=str, default="config/config.yaml")
     parser.add_argument("--checkpoint", type=str, required=True)
-    parser.add_argument("--force_action", type=str, choices=["short", "flat", "long"], help="Override policy with constant action to sanity-check environment/equity updates.")
+    parser.add_argument(
+        "--force_action",
+        type=str,
+        choices=["short", "flat", "long"],
+        help="Override policy with constant action to sanity-check environment/equity updates.",
+    )
     args = parser.parse_args()
 
     with open(args.config, "r") as f:
@@ -125,6 +118,7 @@ def main() -> None:
     logger.info(f"Max drawdown   : {summary['max_drawdown']:.4f}")
     logger.info(f"Total trades   : {summary['total_trades']}")
     logger.info(f"Win rate       : {summary['win_rate']*100:.2f}%")
+    logger.info(f"Sharpe         : {summary['sharpe']:.4f}")
     logger.info(f"Action counts  : {summary['action_distribution']}")
 
     out_path = Path(cfg["paths"]["log_dir"]) / "rl_eval_summary.json"
