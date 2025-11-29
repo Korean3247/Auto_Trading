@@ -104,19 +104,19 @@ rl:
   value_coef: 0.5
   entropy_coef: 0.02
   min_action_prob: 0.05      # exploration floor for sampling
-  flat_penalty: -0.002       # stronger opportunity cost for staying flat
+  flat_penalty: -0.007       # stronger opportunity cost for staying flat
   max_grad_norm: 0.5
   reward_scale: 1.0
   action_mapping: [-1.0, -0.5, 0.0, 0.5, 1.0]
   episode_length: 2048
   min_start_index: 0
   max_start_index: 480000
-  excess_return_alpha: 0.9    # make buy-and-hold slightly positive but closer to neutral
-  dd_penalty_coeff: 0.02
+  excess_return_alpha: 0.7    # lower benchmark weight so exposure can be neutral/positive
+  dd_penalty_coeff: 0.01
   dd_threshold: 0.3
   vol_penalty_coeff: 0.0
   vol_window: 50
-  turnover_penalty_coeff: 0.0002
+  turnover_penalty_coeff: 0.0001
   exposure_penalty_coeff: 0.0   # reduce bias against taking exposure
   max_steps_per_episode: 10000
   initial_equity: 1000.0
