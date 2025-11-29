@@ -80,6 +80,7 @@ class TradingEnv:
         price = self.prices[self.current_step]
         next_price = self.prices[self.current_step + 1]
 
+        prev_position = self.position
         # PnL from holding the previous position across the price move
         pnl = (next_price - price) * self.position
 
@@ -113,7 +114,7 @@ class TradingEnv:
 
         action_mapping = self.cfg["rl"].get("action_mapping", [-1.0, 0.0, 1.0])
         target_pos = action_mapping[action] if action < len(action_mapping) else 0.0
-        turnover_penalty = self.cfg["rl"].get("turnover_penalty_coeff", 0.0) * abs(self.position - target_pos)
+        turnover_penalty = self.cfg["rl"].get("turnover_penalty_coeff", 0.0) * abs(prev_position - target_pos)
         exposure_penalty = self.cfg["rl"].get("exposure_penalty_coeff", 0.0) * abs(self.position)
 
         reward = self.reward_scale * (reward - dd_penalty - vol_penalty - turnover_penalty - exposure_penalty)
