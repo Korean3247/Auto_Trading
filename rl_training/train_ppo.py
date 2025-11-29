@@ -44,8 +44,25 @@ class RolloutBuffer:
         self.positions: List[float] = []
         self.entropies: List[float] = []
         self.probs: List[np.ndarray] = []
+        self.policy_rets: List[float] = []
+        self.bench_rets: List[float] = []
+        self.reward_raws: List[float] = []
 
-    def add(self, obs, action, logprob, reward, done, value, position, entropy=None, probs=None):
+    def add(
+        self,
+        obs,
+        action,
+        logprob,
+        reward,
+        done,
+        value,
+        position,
+        entropy=None,
+        probs=None,
+        policy_ret=None,
+        bench_ret=None,
+        reward_raw=None,
+    ):
         self.obs.append(obs)
         self.actions.append(action)
         self.logprobs.append(logprob)
@@ -57,6 +74,12 @@ class RolloutBuffer:
             self.entropies.append(entropy)
         if probs is not None:
             self.probs.append(probs)
+        if policy_ret is not None:
+            self.policy_rets.append(policy_ret)
+        if bench_ret is not None:
+            self.bench_rets.append(bench_ret)
+        if reward_raw is not None:
+            self.reward_raws.append(reward_raw)
 
     def clear(self):
         self.__init__()
@@ -111,6 +134,9 @@ def collect_rollout(env: TradingEnv, actor: PolicyMLP, critic: ValueMLP, cfg: Di
             info.get("position", 0.0),
             float(entropy.item()) if entropy is not None else None,
             probs.squeeze(0).cpu().numpy() if probs is not None else None,
+            info.get("policy_ret"),
+            info.get("bench_ret"),
+            info.get("reward_raw"),
         )
         obs = next_obs
         if done:
@@ -121,12 +147,18 @@ def collect_rollout(env: TradingEnv, actor: PolicyMLP, critic: ValueMLP, cfg: Di
         if buffer.probs
         else [0.0, 0.0, 0.0]
     )
+    mean_policy_ret = float(np.mean(buffer.policy_rets)) if buffer.policy_rets else 0.0
+    mean_bench_ret = float(np.mean(buffer.bench_rets)) if buffer.bench_rets else 0.0
+    mean_reward_raw = float(np.mean(buffer.reward_raws)) if buffer.reward_raws else 0.0
     stats = {
         "total_reward": total_reward,
         "mean_abs_position": float(np.mean(np.abs(buffer.positions))) if buffer.positions else 0.0,
         "action_counts": action_counts,
         "mean_entropy": float(np.mean(buffer.entropies)) if buffer.entropies else 0.0,
         "mean_probs": mean_probs,
+        "mean_policy_ret": mean_policy_ret,
+        "mean_bench_ret": mean_bench_ret,
+        "mean_reward_raw": mean_reward_raw,
     }
     return buffer, stats
 
@@ -248,7 +280,9 @@ def main(config_path: str, reset_policy: bool = False):
             f"Timesteps={timesteps}, policy_loss={policy_loss:.4f}, value_loss={value_loss:.4f}, "
             f"equity={env.equity:.2f}, rollout_reward={stats['total_reward']:.6f}, "
             f"mean_abs_position={stats['mean_abs_position']:.4f}, action_counts={stats['action_counts']}, "
-            f"mean_entropy={stats['mean_entropy']:.4f}, mean_probs={stats['mean_probs']}"
+            f"mean_entropy={stats['mean_entropy']:.4f}, mean_probs={stats['mean_probs']}, "
+            f"mean_policy_ret={stats['mean_policy_ret']:.6f}, mean_bench_ret={stats['mean_bench_ret']:.6f}, "
+            f"mean_reward_raw={stats['mean_reward_raw']:.6f}"
         )
         if timesteps % (cfg["rl"]["rollout_length"] * 10) == 0:
             save_checkpoint(
