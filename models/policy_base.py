@@ -102,7 +102,7 @@ def load_policy(
     device: Optional[torch.device] = None,
 ) -> PolicyMLP:
     device = device or torch.device("cpu")
-    state = torch.load(path, map_location=device) if path.exists() else None
+    state = torch.load(path, map_location=device, weights_only=False) if path.exists() else None
     state_dict = None
     if isinstance(state, dict) and "policy_state_dict" in state:
         state_dict = state["policy_state_dict"]
