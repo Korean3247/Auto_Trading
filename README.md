@@ -74,3 +74,4 @@ RL 평가
   python -m rl_training.evaluate --config config/config.yaml --checkpoint models/checkpoints/best_rl_policy.pt
   ```
   결과는 로그로 출력되고 `logs/rl_eval_summary.json`에 저장된다.
+- 액션 매핑은 일관되게 `0=short, 1=flat, 2=long`. 환경/평가/실거래가 동일하며, `--force_action {short,flat,long}`로 환경 보상 sanity-check가 가능하다.

@@ -24,7 +24,7 @@ def load_policy_with_infer(cfg: dict, ckpt: Path, input_dim: int) -> torch.nn.Mo
     return load_policy(ckpt, policy_cfg, device=torch.device("cpu"))
 
 
-def evaluate_policy(cfg: dict, ckpt_path: Path) -> Dict:
+def evaluate_policy(cfg: dict, ckpt_path: Path, force_action: str | None = None) -> Dict:
     prices, features = load_price_and_features(Path(cfg["paths"]["data"]), cfg)
     if len(prices) < 2:
         raise RuntimeError("Not enough data for evaluation.")
@@ -54,12 +54,15 @@ def evaluate_policy(cfg: dict, ckpt_path: Path) -> Dict:
 
     for t in range(1, len(prices)):
         obs = torch.tensor(features[t - 1], dtype=torch.float32).unsqueeze(0)
-        with torch.no_grad():
-            logits = policy(obs)
-            action = int(torch.argmax(logits, dim=-1).item())
+        if force_action:
+            action = {"short": 0, "flat": 1, "long": 2}[force_action]
+        else:
+            with torch.no_grad():
+                logits = policy(obs)
+                action = int(torch.argmax(logits, dim=-1).item())
         action_counts[action] = action_counts.get(action, 0) + 1
 
-        target_pos = {0: 0, 1: 1, 2: -1}.get(action, 0)
+        target_pos = {0: -1, 1: 0, 2: 1}.get(action, 0)  # 0=short,1=flat,2=long
         price_prev = prices[t - 1]
         price_now = prices[t]
         ret = (price_now - price_prev) / max(price_prev, 1e-8)
@@ -104,13 +107,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate RL policy on historical data.")
     parser.add_argument("--config", type=str, default="config/config.yaml")
     parser.add_argument("--checkpoint", type=str, required=True)
+    parser.add_argument("--force_action", type=str, choices=["short", "flat", "long"], help="Override policy with constant action to sanity-check environment/equity updates.")
     args = parser.parse_args()
 
     with open(args.config, "r") as f:
         cfg = yaml.safe_load(f)
 
     ckpt = Path(args.checkpoint)
-    summary = evaluate_policy(cfg, ckpt)
+    summary = evaluate_policy(cfg, ckpt, force_action=args.force_action)
 
     logger.info("=== RL Policy Evaluation ===")
     logger.info(f"Initial equity : {summary['initial_equity']:.2f}")

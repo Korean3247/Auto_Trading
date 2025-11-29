@@ -53,7 +53,7 @@ class RiskManager:
 
         # Notional/lev check (approx)
         price = context.get("price", 0.0)
-        target_pos = {0: 0, 1: 1, 2: -1}.get(action, 0)
+        target_pos = {0: -1, 1: 0, 2: 1}.get(action, 0)
         target_notional = abs(target_pos) * price
         if equity > 0:
             if target_notional / equity > max_notional_pct:

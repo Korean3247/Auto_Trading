@@ -54,7 +54,7 @@ class TradingEnv:
         """
         Update position and compute transaction cost. Returns (fee_cost, new_entry_price).
         """
-        target_pos = {0: 0, 1: 1, 2: -1}.get(action, 0)
+        target_pos = {0: -1, 1: 0, 2: 1}.get(action, 0)  # 0=short,1=flat,2=long
         fee_cost = 0.0
         new_entry = self.entry_price
         if target_pos != self.position:
