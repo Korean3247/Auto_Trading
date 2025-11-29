@@ -15,6 +15,17 @@ data_source:
   max_bars: 500000
   auto_download_on_missing: true
   allow_synthetic_fallback: false
+  train_start: "2019-01-01"
+  train_end:   "2021-12-31"
+  val_start:   "2022-01-01"
+  val_end:     "2022-12-31"
+  test_start:  "2023-01-01"
+  test_end:    "2024-12-31"
+
+cost:
+  commission_bps: 1.0
+  slippage_bps: 2.0
+  spread_bps: 5.0
 
 model:
   input_dim: 15        # inferred from data/features when training or first live candle
@@ -96,8 +107,24 @@ rl:
   flat_penalty: -0.001      # per-step penalty if action=flat to discourage collapse
   max_grad_norm: 0.5
   reward_scale: 1.0
+  action_mapping: [-1.0, -0.5, 0.0, 0.5, 1.0]
+  episode_length: 2048
+  min_start_index: 0
+  max_start_index: 480000
+  excess_return_alpha: 1.0
+  dd_penalty_coeff: 0.5
+  dd_threshold: 0.2
+  vol_penalty_coeff: 0.1
+  vol_window: 50
+  turnover_penalty_coeff: 0.01
+  exposure_penalty_coeff: 0.0
   max_steps_per_episode: 10000
   initial_equity: 1000.0
   fee_rate: 0.0004
   slippage: 0.0002
   min_equity: 1.0
+
+live_risk:
+  max_daily_dd: 0.1
+  max_position_notional: 2.0
+  max_consecutive_losses: 10

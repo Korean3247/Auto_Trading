@@ -77,6 +77,7 @@ class PolicyConfig:
     hidden_sizes: List[int]
     activation: str
     action_space: str = "discrete"
+    action_dim: int = 3
 
     @classmethod
     def from_dict(cls, data: dict) -> "PolicyConfig":
@@ -86,6 +87,7 @@ class PolicyConfig:
             hidden_sizes=list(data.get("hidden_sizes", [])),
             activation=str(data.get("activation", "relu")),
             action_space=str(data.get("action_space", "discrete")),
+            action_dim=int(data.get("action_dim", 3)),
         )
 
 
@@ -120,6 +122,7 @@ def load_policy(
         hidden_sizes=config.hidden_sizes,
         activation=config.activation,
         action_space=config.action_space,
+        action_dim=config.action_dim,
     )
     if state_dict is not None:
         model.load_state_dict(state_dict)
@@ -180,7 +183,7 @@ def load_actor_critic(
         hidden_sizes=policy_cfg.hidden_sizes,
         activation=policy_cfg.activation,
         action_space=policy_cfg.action_space,
-        action_dim=3,
+        action_dim=policy_cfg.action_dim,
     ).to(device)
     critic = ValueMLP(
         input_dim=input_dim,

@@ -205,6 +205,7 @@ def main(config_path: str, reset_policy: bool = False):
         hidden_sizes=cfg["model"]["hidden_sizes"],
         activation=cfg["model"]["activation"],
         action_space=cfg["model"].get("action_space", "discrete"),
+        action_dim=len(cfg["rl"].get("action_mapping", [-1.0, 0.0, 1.0])),
     )
     device = torch.device(cfg["rl"]["device"] if torch.cuda.is_available() else "cpu")
     env = TradingEnv(price_arr, feature_arr, cfg)

@@ -35,6 +35,7 @@ def evaluate_policy(cfg: dict, ckpt_path: Path, force_action: str | None = None)
         hidden_sizes=cfg["model"]["hidden_sizes"],
         activation=cfg["model"]["activation"],
         action_space=cfg["model"].get("action_space", "discrete"),
+        action_dim=len(cfg["rl"].get("action_mapping", [-1.0, 0.0, 1.0])),
     )
     policy = load_policy(ckpt_path, dummy_cfg, device=torch.device("cpu"))
     policy.eval()
@@ -62,7 +63,8 @@ def evaluate_policy(cfg: dict, ckpt_path: Path, force_action: str | None = None)
                 action = int(torch.argmax(logits, dim=-1).item())
         action_counts[action] = action_counts.get(action, 0) + 1
 
-        target_pos = {0: -1, 1: 0, 2: 1}.get(action, 0)  # 0=short,1=flat,2=long
+        action_map = cfg["rl"].get("action_mapping", [-1.0, 0.0, 1.0])
+        target_pos = action_map[action] if action < len(action_map) else 0.0
         price_prev = prices[t - 1]
         price_now = prices[t]
         ret = (price_now - price_prev) / max(price_prev, 1e-8)
