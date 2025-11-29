@@ -195,14 +195,14 @@ def main(config_path: str = "config/config.yaml"):
 
     timesteps = 0
     while timesteps < ppo_cfg.total_timesteps:
-    buffer, stats = collect_rollout(env, actor, critic, cfg)
-    policy_loss, value_loss = ppo_update(actor, critic, buffer, ppo_cfg, device)
-    timesteps += cfg["rl"]["rollout_length"]
-    logger.info(
-        f"Timesteps={timesteps}, policy_loss={policy_loss:.4f}, value_loss={value_loss:.4f}, "
-        f"equity={env.equity:.2f}, rollout_reward={stats['total_reward']:.6f}, "
-        f"mean_abs_position={stats['mean_abs_position']:.4f}, action_counts={stats['action_counts']}"
-    )
+        buffer, stats = collect_rollout(env, actor, critic, cfg)
+        policy_loss, value_loss = ppo_update(actor, critic, buffer, ppo_cfg, device)
+        timesteps += cfg["rl"]["rollout_length"]
+        logger.info(
+            f"Timesteps={timesteps}, policy_loss={policy_loss:.4f}, value_loss={value_loss:.4f}, "
+            f"equity={env.equity:.2f}, rollout_reward={stats['total_reward']:.6f}, "
+            f"mean_abs_position={stats['mean_abs_position']:.4f}, action_counts={stats['action_counts']}"
+        )
         if timesteps % (cfg["rl"]["rollout_length"] * 10) == 0:
             save_checkpoint(
                 actor,
