@@ -51,6 +51,7 @@ def evaluate_policy(cfg: dict, ckpt_path: Path, force_action: Optional[str] = No
     prev_pos = 0.0
     equity_curve = []
     returns = []
+    bench_returns = []
 
     while True:
         if force_action:
@@ -63,7 +64,8 @@ def evaluate_policy(cfg: dict, ckpt_path: Path, force_action: Optional[str] = No
 
         next_obs, reward, done, info = env.step(action_idx)
         equity_curve.append(info["equity"])
-        returns.append(reward)
+        returns.append(info.get("policy_ret", reward))
+        bench_returns.append(info.get("bench_ret", 0.0))
 
         if abs(info["position"] - prev_pos) > 1e-9:
             trades += 1
@@ -79,6 +81,8 @@ def evaluate_policy(cfg: dict, ckpt_path: Path, force_action: Optional[str] = No
     total_return = (equity_arr[-1] - equity_arr[0]) / equity_arr[0] if len(equity_arr) else 0.0
     win_rate = wins / trades if trades > 0 else 0.0
     sharpe = float(np.mean(returns) / (np.std(returns) + 1e-8) * np.sqrt(len(returns))) if returns else 0.0
+    bench_ret_total = float(np.prod(np.array(bench_returns) + 1) - 1) if bench_returns else 0.0
+    excess_ret_total = float(np.prod(np.array(returns) + 1) - 1) - bench_ret_total if returns else 0.0
 
     summary = {
         "initial_equity": float(equity_arr[0]) if len(equity_arr) else cfg["paper_trading"]["starting_balance"],
@@ -89,6 +93,8 @@ def evaluate_policy(cfg: dict, ckpt_path: Path, force_action: Optional[str] = No
         "win_rate": win_rate,
         "sharpe": sharpe,
         "action_distribution": action_counts,
+        "benchmark_return": bench_ret_total,
+        "excess_return": excess_ret_total,
     }
     return summary
 

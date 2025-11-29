@@ -96,7 +96,7 @@ class TradingEnv:
         self.bench_equity *= (1 + bench_ret)
         # Excess return reward
         policy_ret = (self.equity - prev_equity) / max(prev_equity, 1e-8)
-        reward = policy_ret - self.cfg["rl"].get("excess_return_alpha", 1.0) * bench_ret
+        reward_raw = policy_ret - self.cfg["rl"].get("excess_return_alpha", 1.0) * bench_ret
 
         # Risk penalties
         self.peak_equity = max(self.peak_equity, self.equity)
@@ -117,7 +117,7 @@ class TradingEnv:
         turnover_penalty = self.cfg["rl"].get("turnover_penalty_coeff", 0.0) * abs(prev_position - target_pos)
         exposure_penalty = self.cfg["rl"].get("exposure_penalty_coeff", 0.0) * abs(self.position)
 
-        reward = self.reward_scale * (reward - dd_penalty - vol_penalty - turnover_penalty - exposure_penalty)
+        reward = self.reward_scale * (reward_raw - dd_penalty - vol_penalty - turnover_penalty - exposure_penalty)
 
         self.current_step += 1
         self.steps_in_episode += 1
@@ -135,5 +135,8 @@ class TradingEnv:
             "ts": self.timestamps[self.current_step] if self.timestamps is not None else None,
             "bench_equity": self.bench_equity,
             "drawdown": dd,
+            "policy_ret": policy_ret,
+            "bench_ret": bench_ret,
+            "reward_raw": reward_raw,
         }
         return self.features[self.current_step].astype(np.float32), float(reward), bool(done), info
