@@ -91,9 +91,9 @@ rl:
   actor_lr: 0.0001
   critic_lr: 0.0004
   value_coef: 0.5
-  entropy_coef: 0.05
-  min_action_prob: 0.05      # exploration floor for sampling
-  flat_penalty: -0.0001      # per-step penalty if action=flat to discourage collapse
+  entropy_coef: 0.02
+  min_action_prob: 0.10      # exploration floor for sampling
+  flat_penalty: -0.001      # per-step penalty if action=flat to discourage collapse
   max_grad_norm: 0.5
   reward_scale: 1.0
   max_steps_per_episode: 10000
