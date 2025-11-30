@@ -118,7 +118,10 @@ class TradingEnv:
         exposure_penalty = self.cfg["rl"].get("exposure_penalty_coeff", 0.0) * abs(self.position)
 
         flat_penalty = self.cfg["rl"].get("flat_penalty", 0.0) if abs(target_pos) < 1e-9 else 0.0
-        reward = self.reward_scale * (reward_raw - dd_penalty - vol_penalty - turnover_penalty - exposure_penalty + flat_penalty)
+        short_penalty = self.cfg["rl"].get("short_penalty", 0.0) if target_pos < 0 else 0.0
+        reward = self.reward_scale * (
+            reward_raw - dd_penalty - vol_penalty - turnover_penalty - exposure_penalty + flat_penalty + short_penalty
+        )
 
         self.current_step += 1
         self.steps_in_episode += 1
