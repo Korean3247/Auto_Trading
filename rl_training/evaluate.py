@@ -52,6 +52,8 @@ def evaluate_policy(cfg: dict, ckpt_path: Path, force_action: Optional[str] = No
     equity_curve = []
     returns = []
     bench_returns = []
+    probs_list = []
+    entropies = []
 
     while True:
         if force_action:
@@ -59,9 +61,12 @@ def evaluate_policy(cfg: dict, ckpt_path: Path, force_action: Optional[str] = No
         else:
             with torch.no_grad():
                 logits = policy(torch.tensor(obs, dtype=torch.float32).unsqueeze(0))
+                logits = logits / max(temperature, 1e-4)
+                probs = torch.softmax(logits, dim=-1).squeeze(0)
+                probs_list.append(probs.cpu().numpy())
+                entropies.append(float(-(probs * probs.clamp(min=1e-12).log()).sum().item()))
                 if sample:
-                    probs = torch.softmax(logits / max(temperature, 1e-4), dim=-1).squeeze(0).cpu().numpy()
-                    action_idx = int(np.random.choice(len(probs), p=probs))
+                    action_idx = int(np.random.choice(len(probs), p=probs.cpu().numpy()))
                 else:
                     action_idx = int(torch.argmax(logits, dim=-1).item())
         action_counts[action_idx] = action_counts.get(action_idx, 0) + 1
@@ -87,6 +92,8 @@ def evaluate_policy(cfg: dict, ckpt_path: Path, force_action: Optional[str] = No
     sharpe = float(np.mean(returns) / (np.std(returns) + 1e-8) * np.sqrt(len(returns))) if returns else 0.0
     bench_ret_total = float(np.prod(np.array(bench_returns) + 1) - 1) if bench_returns else 0.0
     excess_ret_total = float(np.prod(np.array(returns) + 1) - 1) - bench_ret_total if returns else 0.0
+    mean_probs = np.mean(np.stack(probs_list), axis=0).tolist() if probs_list else []
+    mean_entropy = float(np.mean(entropies)) if entropies else 0.0
 
     summary = {
         "initial_equity": float(equity_arr[0]) if len(equity_arr) else cfg["paper_trading"]["starting_balance"],
@@ -99,6 +106,8 @@ def evaluate_policy(cfg: dict, ckpt_path: Path, force_action: Optional[str] = No
         "action_distribution": action_counts,
         "benchmark_return": bench_ret_total,
         "excess_return": excess_ret_total,
+        "mean_probs": mean_probs,
+        "mean_entropy": mean_entropy,
     }
     return summary
 
