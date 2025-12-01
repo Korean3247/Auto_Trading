@@ -268,6 +268,7 @@ def main(config_path: str, reset_policy: bool = False):
     )
 
     timesteps = 0
+    best_reward = -float("inf")
     while timesteps < ppo_cfg.total_timesteps:
         buffer, stats = collect_rollout(env, actor, critic, cfg)
         policy_loss, value_loss = ppo_update(actor, critic, buffer, ppo_cfg, device)
@@ -291,6 +292,16 @@ def main(config_path: str, reset_policy: bool = False):
                 value_state=critic.state_dict(),
                 config=cfg,
                 extra={"timesteps": timesteps},
+            )
+        # Save best checkpoint by rollout reward to avoid selecting collapsed flats
+        if stats["total_reward"] > best_reward:
+            best_reward = stats["total_reward"]
+            save_checkpoint(
+                actor,
+                Path(cfg["paths"]["best_rl_policy"]),
+                value_state=critic.state_dict(),
+                config=cfg,
+                extra={"timesteps": timesteps, "total_reward": best_reward},
             )
 
     save_checkpoint(
