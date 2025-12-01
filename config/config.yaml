@@ -102,9 +102,9 @@ rl:
   actor_lr: 0.0001
   critic_lr: 0.0004
   value_coef: 0.5
-  entropy_coef: 0.02
+  entropy_coef: 0.05
   min_action_prob: 0.05      # exploration floor for sampling
-  flat_penalty: -0.007       # stronger opportunity cost for staying flat
+  flat_penalty: -0.001       # mild opportunity cost for staying flat
   short_penalty: -0.01       # discourage short exposure on long-biased data
   max_grad_norm: 0.5
   reward_scale: 1.0
@@ -112,13 +112,13 @@ rl:
   episode_length: 2048
   min_start_index: 0
   max_start_index: 480000
-  excess_return_alpha: 0.7    # lower benchmark weight so exposure can be neutral/positive
-  dd_penalty_coeff: 0.01
-  dd_threshold: 0.3
-  vol_penalty_coeff: 0.0
+  excess_return_alpha: 1.0    # benchmark as neutral baseline
+  dd_penalty_coeff: 0.05      # stronger drawdown aversion to favor de-risking
+  dd_threshold: 0.25
+  vol_penalty_coeff: 0.01     # light volatility targeting
   vol_window: 50
-  turnover_penalty_coeff: 0.0001
-  exposure_penalty_coeff: 0.0   # reduce bias against taking exposure
+  turnover_penalty_coeff: 0.0002
+  exposure_penalty_coeff: 0.002   # gentle nudge against constant max exposure
   max_steps_per_episode: 10000
   initial_equity: 1000.0
   fee_rate: 0.0004
