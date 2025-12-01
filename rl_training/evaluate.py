@@ -24,7 +24,7 @@ def resolve_force_action(action_map: list[float], name: str) -> int:
     return int(np.argmin(np.abs(np.array(action_map))))
 
 
-def evaluate_policy(cfg: dict, ckpt_path: Path, force_action: Optional[str] = None) -> Dict:
+def evaluate_policy(cfg: dict, ckpt_path: Path, force_action: Optional[str] = None, sample: bool = False, temperature: float = 1.0) -> Dict:
     prices, features = load_price_and_features(Path(cfg["paths"]["data"]), cfg)
     if len(prices) < 2:
         raise RuntimeError("Not enough data for evaluation.")
@@ -59,7 +59,11 @@ def evaluate_policy(cfg: dict, ckpt_path: Path, force_action: Optional[str] = No
         else:
             with torch.no_grad():
                 logits = policy(torch.tensor(obs, dtype=torch.float32).unsqueeze(0))
-                action_idx = int(torch.argmax(logits, dim=-1).item())
+                if sample:
+                    probs = torch.softmax(logits / max(temperature, 1e-4), dim=-1).squeeze(0).cpu().numpy()
+                    action_idx = int(np.random.choice(len(probs), p=probs))
+                else:
+                    action_idx = int(torch.argmax(logits, dim=-1).item())
         action_counts[action_idx] = action_counts.get(action_idx, 0) + 1
 
         next_obs, reward, done, info = env.step(action_idx)
@@ -109,13 +113,24 @@ def main() -> None:
         choices=["short", "flat", "long"],
         help="Override policy with constant action to sanity-check environment/equity updates.",
     )
+    parser.add_argument(
+        "--sample",
+        action="store_true",
+        help="Use stochastic sampling (softmax) for actions instead of greedy argmax.",
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=1.0,
+        help="Sampling temperature when --sample is set (higher → more random).",
+    )
     args = parser.parse_args()
 
     with open(args.config, "r") as f:
         cfg = yaml.safe_load(f)
 
     ckpt = Path(args.checkpoint)
-    summary = evaluate_policy(cfg, ckpt, force_action=args.force_action)
+    summary = evaluate_policy(cfg, ckpt, force_action=args.force_action, sample=args.sample, temperature=args.temperature)
 
     logger.info("=== RL Policy Evaluation ===")
     logger.info(f"Initial equity : {summary['initial_equity']:.2f}")
