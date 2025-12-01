@@ -150,6 +150,10 @@ def collect_rollout(env: TradingEnv, actor: PolicyMLP, critic: ValueMLP, cfg: Di
     mean_policy_ret = float(np.mean(buffer.policy_rets)) if buffer.policy_rets else 0.0
     mean_bench_ret = float(np.mean(buffer.bench_rets)) if buffer.bench_rets else 0.0
     mean_reward_raw = float(np.mean(buffer.reward_raws)) if buffer.reward_raws else 0.0
+    rollout_sharpe = 0.0
+    if buffer.policy_rets:
+        pr = np.array(buffer.policy_rets)
+        rollout_sharpe = float(np.mean(pr) / (np.std(pr) + 1e-8) * np.sqrt(len(pr)))
     stats = {
         "total_reward": total_reward,
         "mean_abs_position": float(np.mean(np.abs(buffer.positions))) if buffer.positions else 0.0,
@@ -159,6 +163,7 @@ def collect_rollout(env: TradingEnv, actor: PolicyMLP, critic: ValueMLP, cfg: Di
         "mean_policy_ret": mean_policy_ret,
         "mean_bench_ret": mean_bench_ret,
         "mean_reward_raw": mean_reward_raw,
+        "rollout_sharpe": rollout_sharpe,
     }
     return buffer, stats
 
@@ -268,7 +273,8 @@ def main(config_path: str, reset_policy: bool = False):
     )
 
     timesteps = 0
-    best_reward = -float("inf")
+    best_metric = -float("inf")
+    best_metric_name = cfg["rl"].get("best_metric", "reward")
     while timesteps < ppo_cfg.total_timesteps:
         buffer, stats = collect_rollout(env, actor, critic, cfg)
         policy_loss, value_loss = ppo_update(actor, critic, buffer, ppo_cfg, device)
@@ -293,15 +299,19 @@ def main(config_path: str, reset_policy: bool = False):
                 config=cfg,
                 extra={"timesteps": timesteps},
             )
-        # Save best checkpoint by rollout reward to avoid selecting collapsed flats
-        if stats["total_reward"] > best_reward:
-            best_reward = stats["total_reward"]
+        # Save best checkpoint by chosen metric: reward or sharpe (based on policy_rets if available)
+        current_metric = stats["total_reward"]
+        if best_metric_name == "sharpe":
+            # approximate sharpe using policy returns if present
+            current_metric = stats.get("rollout_sharpe", stats["total_reward"])
+        if current_metric > best_metric:
+            best_metric = current_metric
             save_checkpoint(
                 actor,
                 Path(cfg["paths"]["best_rl_policy"]),
                 value_state=critic.state_dict(),
                 config=cfg,
-                extra={"timesteps": timesteps, "total_reward": best_reward},
+                extra={"timesteps": timesteps, best_metric_name: best_metric},
             )
 
     save_checkpoint(
