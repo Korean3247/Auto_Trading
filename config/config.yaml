@@ -118,9 +118,11 @@ rl:
   vol_penalty_coeff: 0.0      # remove vol headwind for now
   vol_window: 50
   turnover_penalty_coeff: 0.0     # no turnover cost to encourage switching 0/0.5/1
-  exposure_penalty_coeff: 0.012   # penalize sustained high exposure more
+  exposure_penalty_coeff: 0.02    # penalize sustained high exposure more
   exposure_penalty_power: 2       # stronger penalty for max exposure than partial
-  exposure_vol_beta: 10.0         # scale exposure penalty up in high realized vol
+  exposure_vol_beta: 12.0         # scale exposure penalty up in high realized vol
+  dd_episode_penalty_coeff: 0.05  # episodic penalty for large max drawdown
+  dd_episode_threshold: 0.20
   best_metric: sharpe             # reward|sharpe for checkpoint selection
   max_steps_per_episode: 10000
   initial_equity: 1000.0

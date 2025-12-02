@@ -103,6 +103,8 @@ class TradingEnv:
         dd = (self.peak_equity - self.equity) / max(self.peak_equity, 1e-8)
         dd_threshold = self.cfg["rl"].get("dd_threshold", 0.2)
         dd_penalty = self.cfg["rl"].get("dd_penalty_coeff", 0.0) * max(0.0, dd - dd_threshold)
+        # Track episode-level max drawdown
+        self.max_dd_episode = max(getattr(self, "max_dd_episode", 0.0), dd)
 
         ret = policy_ret
         self.returns_window.append(ret)
@@ -133,6 +135,10 @@ class TradingEnv:
             or self.current_step >= len(self.prices) - 2
             or self.equity <= self.min_equity
         )
+        if done:
+            dd_epi_thresh = self.cfg["rl"].get("dd_episode_threshold", self.cfg["rl"].get("dd_threshold", 0.2))
+            dd_epi_coeff = self.cfg["rl"].get("dd_episode_penalty_coeff", 0.0)
+            reward -= dd_epi_coeff * max(0.0, self.max_dd_episode - dd_epi_thresh)
         info = {
             "equity": self.equity,
             "pnl": pnl,
