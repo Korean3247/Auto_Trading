@@ -109,7 +109,7 @@ rl:
   max_grad_norm: 0.5
   reward_scale: 1.0
   action_mapping: [0.0, 0.5, 1.0]  # temporarily restrict to long-only scaling
-  episode_length: 2048
+  episode_length: 1024
   min_start_index: 0
   max_start_index: 480000
   excess_return_alpha: 0.9    # soften benchmark drag to allow deviation
@@ -118,7 +118,7 @@ rl:
   vol_penalty_coeff: 0.0      # remove vol headwind for now
   vol_window: 50
   turnover_penalty_coeff: 0.0     # no turnover cost to encourage switching 0/0.5/1
-  exposure_penalty_coeff: 0.006   # penalize sustained high exposure mildly
+  exposure_penalty_coeff: 0.01   # penalize sustained high exposure mildly
   exposure_penalty_power: 2       # stronger penalty for max exposure than partial
   exposure_vol_beta: 8.0          # scale exposure penalty up in high realized vol
   best_metric: sharpe             # reward|sharpe for checkpoint selection
